@@ -101,9 +101,7 @@ async def lock_user(
 
     stmt = (
         select(User)
-        .where(
-            (User.locktime.is_(None)) | (User.locktime < expiry)
-        )
+        .where((User.locktime.is_(None)) | (User.locktime < expiry))
         .order_by(User.created_at)
         .limit(1)
         .with_for_update(skip_locked=True)

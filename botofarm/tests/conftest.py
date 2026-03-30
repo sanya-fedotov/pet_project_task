@@ -144,11 +144,9 @@ async def pg_engine(pg_container):
     """
     # testcontainers returns a psycopg2-style URL; swap driver to asyncpg.
     sync_url: str = pg_container.get_connection_url()
-    async_url = (
-        sync_url
-        .replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
-        .replace("postgresql://", "postgresql+asyncpg://", 1)
-    )
+    async_url = sync_url.replace(
+        "postgresql+psycopg2://", "postgresql+asyncpg://", 1
+    ).replace("postgresql://", "postgresql+asyncpg://", 1)
     engine = create_async_engine(async_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

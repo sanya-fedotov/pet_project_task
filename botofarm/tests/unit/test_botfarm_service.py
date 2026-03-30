@@ -29,7 +29,6 @@ from app.models.user import User as UserModel
 from app.schemas.user import FreeUsersRequest, LockUserRequest, UserCreate
 from app.services import botfarm as service
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -195,9 +194,7 @@ async def test_lock_user_filters_by_project_id(db_session: AsyncSession) -> None
     await service.create_user(db_session, _make_user_create())  # unrelated project
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.lock_user(
-            db_session, _lock_request(project_id=uuid.uuid4())
-        )
+        await service.lock_user(db_session, _lock_request(project_id=uuid.uuid4()))
 
     assert exc_info.value.status_code == 404
 
@@ -208,9 +205,7 @@ async def test_lock_user_filters_by_env(db_session: AsyncSession) -> None:
     await service.create_user(db_session, _make_user_create(env=EnvType.prod))
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.lock_user(
-            db_session, _lock_request(env=EnvType.preprod)
-        )
+        await service.lock_user(db_session, _lock_request(env=EnvType.preprod))
 
     assert exc_info.value.status_code == 404
 
@@ -218,14 +213,10 @@ async def test_lock_user_filters_by_env(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_lock_user_filters_by_domain(db_session: AsyncSession) -> None:
     """lock_user with a domain filter ignores users with a different domain."""
-    await service.create_user(
-        db_session, _make_user_create(domain=DomainType.regular)
-    )
+    await service.create_user(db_session, _make_user_create(domain=DomainType.regular))
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.lock_user(
-            db_session, _lock_request(domain=DomainType.canary)
-        )
+        await service.lock_user(db_session, _lock_request(domain=DomainType.canary))
 
     assert exc_info.value.status_code == 404
 

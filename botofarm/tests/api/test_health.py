@@ -6,10 +6,11 @@ Covers:
 - GET /api/v1/health/ready   — readiness probe (hits the DB)
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
-from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,73 @@
+repos:
+  # ---------------------------------------------------------------------------
+  # General file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # ---------------------------------------------------------------------------
+  # Block .env files from ever being committed
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+        # Catches accidental direct pushes to main; remove if your workflow
+        # requires it.
+        stages: [pre-commit]
+
+  # ---------------------------------------------------------------------------
+  # Secret detection — prevents credentials leaking into git history
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: |
+          (?x)^(
+            \.secrets\.baseline|
+            tests/.*|
+            .*\.example
+          )$
+
+  # ---------------------------------------------------------------------------
+  # Ruff — linting + import sorting (replaces isort, pyflakes, pycodestyle)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.8
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # ---------------------------------------------------------------------------
+  # Mypy — static type checking (runs on staged Python files only)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        args:
+          - "--config-file=pyproject.toml"
+          - "--ignore-missing-imports"
+        additional_dependencies:
+          - "pydantic>=2.0.0"
+          - "pydantic-settings>=2.0.0"
+          - "sqlalchemy>=2.0.0"
+          - "fastapi>=0.110.0"
+          - "types-passlib"
+        # Run on the full app/ package so cross-module types resolve correctly
+        pass_filenames: false
+        files: ^app/

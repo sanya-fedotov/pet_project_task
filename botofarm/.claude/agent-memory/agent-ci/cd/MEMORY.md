@@ -1,0 +1,1 @@
+- [Botofarm DX infrastructure](project_botofarm_dx.md) — CI/CD setup, pre-commit hooks, coverage gate (75%), known test bug in test_metrics.py

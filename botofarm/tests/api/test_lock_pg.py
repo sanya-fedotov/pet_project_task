@@ -16,7 +16,6 @@ from httpx import AsyncClient
 
 from app.models.user import User
 
-
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 

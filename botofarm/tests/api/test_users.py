@@ -14,10 +14,10 @@ from httpx import AsyncClient
 
 from app.models.user import User
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _user_payload(**overrides) -> dict:
     """Return a valid user-creation payload with optional field overrides."""
