@@ -1,0 +1,35 @@
+# Default values for botofarm.
+# Override these values in a separate values file or via --set flags.
+
+replicaCount: 1
+
+image:
+  repository: botofarm
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# Application environment variables.
+# Sensitive values (SECRET_KEY, DATABASE_URL) should be supplied via a
+# Kubernetes Secret or an external secrets manager — never committed here.
+env:
+  # Full async DSN for the PostgreSQL database.
+  DATABASE_URL: "postgresql+asyncpg://botofarm:botofarm@postgres:5432/botofarm"
+  ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  LOCK_TTL_SECONDS: "300"
+  # Override these two values via --set or a sealed-secret in production.
+  SECRET_KEY: "change-me-in-production"
+  METRICS_TOKEN: "change-me-in-production"
+  CORS_ORIGINS: '["http://localhost"]'
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install development dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run mypy type checker
+        run: mypy app/
+
+      - name: Run tests (unit + API, SQLite-backed — no Docker required)
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          SECRET_KEY: ci-secret-key-not-for-production
+          ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+          LOCK_TTL_SECONDS: "300"
+          METRICS_TOKEN: ""
+          CORS_ORIGINS: '["http://localhost"]'
+        run: pytest tests/unit/ tests/api/ -v --tb=short

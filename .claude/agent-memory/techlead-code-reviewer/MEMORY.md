@@ -1,0 +1,1 @@
+- [Botofarm project context](project_botofarm.md) — architecture, stack, and confirmed issues for the botofarm microservice (reviewed 2026-03-30)

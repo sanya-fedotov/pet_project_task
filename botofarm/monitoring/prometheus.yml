@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: botofarm
+    # The /metrics endpoint is protected by a bearer token when METRICS_TOKEN
+    # is set. Supply the same token here so Prometheus can scrape it.
+    # For localhost-only Prometheus deployments the token can be omitted.
+    static_configs:
+      - targets:
+          - app:8000
+    metrics_path: /metrics
+    # Uncomment and fill in if METRICS_TOKEN is configured:
+    # authorization:
+    #   credentials: change-me-in-production

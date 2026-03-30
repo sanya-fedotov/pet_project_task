@@ -1,0 +1,1 @@
+- [botofarm project context](project_botofarm.md) — stack, architecture, known issues from 2026-03-30 code review
