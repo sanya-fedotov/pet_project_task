@@ -4,6 +4,8 @@ All orchestration between the security utilities and the data-access layer
 lives here.  API handlers must never call CRUD functions directly.
 """
 
+import time
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.crud import user as user_crud
+from app.metrics import (
+    free_users_total,
+    lock_attempts_total,
+    lock_operation_duration_seconds,
+    users_freed_total,
+    users_locked_current,
+)
 from app.schemas.auth import Token
-from app.schemas.user import FreeUsersResponse, UserCreate, UserResponse
+from app.schemas.user import (
+    FreeUsersRequest,
+    FreeUsersResponse,
+    LockUserRequest,
+    UserCreate,
+    UserResponse,
+)
 
 
 async def login(db: AsyncSession, username: str, password: str) -> Token:
@@ -59,7 +74,6 @@ async def create_user(db: AsyncSession, schema: UserCreate) -> UserResponse:
     try:
         user = await user_crud.create_user(db, schema, hashed)
     except IntegrityError as exc:
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A user with this login already exists.",
@@ -67,49 +81,79 @@ async def create_user(db: AsyncSession, schema: UserCreate) -> UserResponse:
     return UserResponse.model_validate(user)
 
 
-async def get_users(db: AsyncSession) -> list[UserResponse]:
-    """Return all bot accounts.
+async def get_users(
+    db: AsyncSession,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[UserResponse]:
+    """Return bot accounts with optional pagination.
 
     Args:
         db: Active async database session.
+        limit: Maximum number of accounts to return. Defaults to 100.
+        offset: Number of accounts to skip. Defaults to 0.
 
     Returns:
         A list of :class:`~app.schemas.user.UserResponse` objects.
     """
-    users = await user_crud.get_users(db)
+    users = await user_crud.get_users(db, limit=limit, offset=offset)
     return [UserResponse.model_validate(u) for u in users]
 
 
-async def lock_user(db: AsyncSession) -> UserResponse:
-    """Acquire the first free (or expired) bot account.
+async def lock_user(
+    db: AsyncSession,
+    filters: LockUserRequest,
+) -> UserResponse:
+    """Acquire the first free (or expired) bot account matching the filters.
 
     Args:
         db: Active async database session.
+        filters: Optional project/env/domain constraints for account selection.
 
     Returns:
         :class:`~app.schemas.user.UserResponse` for the newly locked account.
 
     Raises:
-        HTTPException: 404 if no free accounts are available.
+        HTTPException: 404 if no matching free accounts are available.
     """
-    user = await user_crud.lock_user(db, settings.lock_ttl_seconds)
+    t0 = time.perf_counter()
+    user = await user_crud.lock_user(
+        db,
+        settings.lock_ttl_seconds,
+        project_id=filters.project_id,
+        env=filters.env,
+        domain=filters.domain,
+    )
+    lock_operation_duration_seconds.observe(time.perf_counter() - t0)
+
     if user is None:
+        lock_attempts_total.labels(result="no_users_available").inc()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No free users available.",
         )
+
+    lock_attempts_total.labels(result="success").inc()
+    users_locked_current.inc()
     return UserResponse.model_validate(user)
 
 
-async def free_users(db: AsyncSession) -> FreeUsersResponse:
-    """Release all locked bot accounts.
+async def free_users(
+    db: AsyncSession,
+    filters: FreeUsersRequest,
+) -> FreeUsersResponse:
+    """Release locked bot accounts, optionally scoped to a project.
 
     Args:
         db: Active async database session.
+        filters: Optional project constraint for selective release.
 
     Returns:
         :class:`~app.schemas.user.FreeUsersResponse` containing the count of
         accounts that were unlocked.
     """
-    count = await user_crud.free_users(db)
+    count = await user_crud.free_users(db, project_id=filters.project_id)
+    free_users_total.inc()
+    users_freed_total.inc(count)
+    users_locked_current.dec(count)
     return FreeUsersResponse(freed=count)

@@ -1,0 +1,1 @@
+- [Botofarm observability architecture](project_observability.md) — metric naming, alert thresholds, Grafana UID, business metrics design for bot-pool monitoring

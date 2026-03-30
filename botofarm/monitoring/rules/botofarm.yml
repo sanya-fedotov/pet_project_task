@@ -1,0 +1,200 @@
+groups:
+  - name: botofarm.availability
+    interval: 15s
+    rules:
+      # -----------------------------------------------------------------
+      # Service down — no scrape data for 1 minute
+      # -----------------------------------------------------------------
+      - alert: BotofarmServiceDown
+        expr: up{job="botofarm"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Botofarm is unreachable"
+          description: >
+            Prometheus cannot scrape the Botofarm /metrics endpoint.
+            The service may be crashed, OOM-killed, or the network is partitioned.
+            Check: docker compose ps / kubectl get pods.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/service-down"
+
+  - name: botofarm.red
+    interval: 15s
+    rules:
+      # -----------------------------------------------------------------
+      # High 5xx error rate — symptom: users receiving server errors
+      # Threshold: > 1 % of requests are 5xx over a 5-minute window
+      # -----------------------------------------------------------------
+      - alert: BotofarmHighErrorRate
+        expr: >
+          (
+            sum(rate(http_requests_total{job="botofarm", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="botofarm"}[5m]))
+          ) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Botofarm 5xx error rate above 1%"
+          description: >
+            Current 5xx rate: {{ printf "%.2f" $value | humanizePercentage }}.
+            Errors are user-visible — check app logs for stack traces and
+            verify DB connectivity via the readiness probe.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/high-error-rate"
+
+      # -----------------------------------------------------------------
+      # Elevated 4xx rate — may indicate auth token expiry or API misuse
+      # Threshold: > 10 % of requests are 4xx over a 5-minute window
+      # -----------------------------------------------------------------
+      - alert: BotofarmHigh4xxRate
+        expr: >
+          (
+            sum(rate(http_requests_total{job="botofarm", status=~"4.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="botofarm"}[5m]))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Botofarm 4xx rate above 10%"
+          description: >
+            Current 4xx rate: {{ printf "%.2f" $value | humanizePercentage }}.
+            High 4xx may indicate expired JWT tokens in CI pipelines or
+            misconfigured test runners.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/high-4xx-rate"
+
+      # -----------------------------------------------------------------
+      # High P99 latency — symptom: tests waiting too long for a bot account
+      # Threshold: P99 > 2 seconds over 5-minute window
+      # -----------------------------------------------------------------
+      - alert: BotofarmHighLatencyP99
+        expr: >
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="botofarm"}[5m])) by (le)
+          ) > 2.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Botofarm P99 latency above 2s"
+          description: >
+            P99 request latency is {{ $value | humanizeDuration }}.
+            Likely cause: DB lock contention on the users table during
+            concurrent test runs, or slow network to PostgreSQL.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/high-latency"
+
+      # -----------------------------------------------------------------
+      # Critical P99 latency — escalation of the above
+      # Threshold: P99 > 5 seconds
+      # -----------------------------------------------------------------
+      - alert: BotofarmCriticalLatencyP99
+        expr: >
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="botofarm"}[5m])) by (le)
+          ) > 5.0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Botofarm P99 latency above 5s — tests are stalling"
+          description: >
+            P99 request latency is {{ $value | humanizeDuration }}.
+            Test runs are likely timing out waiting for bot accounts.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/high-latency"
+
+  - name: botofarm.business
+    interval: 15s
+    rules:
+      # -----------------------------------------------------------------
+      # Pool exhaustion — lock_user returning 404 more than 20% of attempts
+      # Symptom: test suites failing to acquire bot accounts
+      # -----------------------------------------------------------------
+      - alert: BotofarmPoolExhausted
+        expr: >
+          (
+            rate(botofarm_lock_attempts_total{result="no_users_available"}[5m])
+            /
+            rate(botofarm_lock_attempts_total[5m])
+          ) > 0.20
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Botofarm pool exhaustion: >20% of lock requests return 404"
+          description: >
+            Pool exhaustion ratio: {{ printf "%.1f" $value | humanizePercentage }}.
+            Either add more bot accounts (POST /api/v1/users) or call
+            POST /api/v1/users/free to release stuck locks from crashed test runs.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/pool-exhausted"
+
+      # -----------------------------------------------------------------
+      # Pool exhaustion — critical: > 50% of lock attempts failing
+      # -----------------------------------------------------------------
+      - alert: BotofarmPoolCritical
+        expr: >
+          (
+            rate(botofarm_lock_attempts_total{result="no_users_available"}[5m])
+            /
+            rate(botofarm_lock_attempts_total[5m])
+          ) > 0.50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Botofarm pool critical: >50% of lock requests return 404"
+          description: >
+            Pool exhaustion ratio: {{ printf "%.1f" $value | humanizePercentage }}.
+            Most test runs cannot acquire bot accounts. Immediate action required.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/pool-exhausted"
+
+      # -----------------------------------------------------------------
+      # Lock operation slow — DB contention on SELECT FOR UPDATE SKIP LOCKED
+      # -----------------------------------------------------------------
+      - alert: BotofarmLockOperationSlow
+        expr: >
+          histogram_quantile(
+            0.99,
+            rate(botofarm_lock_operation_duration_seconds_bucket[5m])
+          ) > 1.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Botofarm lock DB operation P99 > 1s"
+          description: >
+            P99 lock operation duration: {{ $value | humanizeDuration }}.
+            The SELECT FOR UPDATE SKIP LOCKED query is slow — check for missing
+            index on users.locktime or excessive table bloat.
+          runbook_url: "https://wiki.example.com/runbooks/botofarm/lock-slow"
+
+  # -----------------------------------------------------------------------
+  # Recording rules — pre-computed for dashboard efficiency
+  # -----------------------------------------------------------------------
+  - name: botofarm.recording
+    interval: 15s
+    rules:
+      - record: job:botofarm_request_rate5m:rate
+        expr: sum(rate(http_requests_total{job="botofarm"}[5m]))
+
+      - record: job:botofarm_error_rate5m:ratio
+        expr: >
+          sum(rate(http_requests_total{job="botofarm", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="botofarm"}[5m]))
+
+      - record: job:botofarm_latency_p99_5m:histogram_quantile
+        expr: >
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="botofarm"}[5m])) by (le)
+          )
+
+      - record: job:botofarm_pool_exhaustion_rate5m:ratio
+        expr: >
+          rate(botofarm_lock_attempts_total{result="no_users_available"}[5m])
+          /
+          rate(botofarm_lock_attempts_total[5m])

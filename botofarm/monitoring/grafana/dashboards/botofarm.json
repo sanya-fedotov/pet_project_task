@@ -1,86 +1,454 @@
 {
   "__inputs": [],
-  "__requires": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
   "annotations": { "list": [] },
-  "description": "Botofarm microservice — request rate, error rate, and latency.",
+  "description": "Botofarm microservice — service health, RED metrics, and bot-pool business metrics.",
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "panels": [
+
     {
-      "datasource": "Prometheus",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Service Health",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "reqps" },
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          },
+          "mappings": []
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "id": 1,
-      "options": { "tooltip": { "mode": "single" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
       "targets": [
         {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum(rate(http_requests_total{job=\"botofarm\"}[1m]))",
-          "legendFormat": "Request rate",
+          "legendFormat": "req/s",
           "refId": "A"
         }
       ],
-      "title": "Request Rate (req/s)",
-      "type": "timeseries"
+      "title": "Request Rate",
+      "type": "stat"
     },
+
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "percentunit" },
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "mappings": []
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "id": 2,
-      "options": { "tooltip": { "mode": "single" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{job=\"botofarm\",status=~\"5..\"}[1m])) / sum(rate(http_requests_total{job=\"botofarm\"}[1m]))",
-          "legendFormat": "5xx error rate",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{job=\"botofarm\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"botofarm\"}[5m]))",
+          "legendFormat": "5xx ratio",
           "refId": "A"
         }
       ],
-      "title": "Error Rate (5xx)",
-      "type": "timeseries"
+      "title": "5xx Error Rate",
+      "type": "stat"
     },
+
     {
-      "datasource": "Prometheus",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "s" },
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2.0 }
+            ]
+          },
+          "mappings": []
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "id": 3,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[5m])) by (le))",
+          "legendFormat": "P99",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Latency",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "botofarm_users_locked_current",
+          "legendFormat": "locked accounts",
+          "refId": "A"
+        }
+      ],
+      "title": "Locked Bot Accounts",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "RED Metrics — Request Rate / Errors / Duration",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 10,
       "options": { "tooltip": { "mode": "multi" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[1m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"botofarm\"}[1m]))",
+          "legendFormat": "{{ handler }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate by Endpoint",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 11,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"botofarm\",status=~\"5..\"}[5m])) / sum by (handler) (rate(http_requests_total{job=\"botofarm\"}[5m]))",
+          "legendFormat": "5xx {{ handler }}",
+          "refId": "A"
+        }
+      ],
+      "title": "5xx Error Rate by Endpoint",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 12,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[1m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[1m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"botofarm\"}[5m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
       ],
-      "title": "Request Latency (p50 / p95 / p99)",
+      "title": "Request Latency Percentiles (p50 / p95 / p99)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "Business Metrics — Bot Pool",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 20,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(botofarm_lock_attempts_total{result=\"success\"}[5m])",
+          "legendFormat": "successful locks/s",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(botofarm_lock_attempts_total{result=\"no_users_available\"}[5m])",
+          "legendFormat": "pool-exhausted (404)/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Lock Attempts Rate (success vs 404)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 21,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(botofarm_lock_attempts_total{result=\"no_users_available\"}[5m]) / rate(botofarm_lock_attempts_total[5m])",
+          "legendFormat": "pool exhaustion ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Pool Exhaustion Ratio (lock 404 / total lock attempts)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 22,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "botofarm_users_locked_current",
+          "legendFormat": "currently locked",
+          "refId": "A"
+        }
+      ],
+      "title": "Currently Locked Bot Accounts",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 23,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, rate(botofarm_lock_operation_duration_seconds_bucket[5m]))",
+          "legendFormat": "lock DB p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, rate(botofarm_lock_operation_duration_seconds_bucket[5m]))",
+          "legendFormat": "lock DB p99",
+          "refId": "B"
+        }
+      ],
+      "title": "Lock DB Operation Duration (SELECT FOR UPDATE)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 24,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(botofarm_free_users_total[5m])",
+          "legendFormat": "free_users calls/s",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(botofarm_users_freed_total[5m])",
+          "legendFormat": "accounts released/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Free Users Operations",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 103,
+      "title": "HTTP Status Code Breakdown",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 1 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 30,
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (status) (rate(http_requests_total{job=\"botofarm\"}[1m]))",
+          "legendFormat": "HTTP {{ status }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate by Status Code",
       "type": "timeseries"
     }
   ],
+
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["botofarm"],
+  "tags": ["botofarm", "red", "business"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
   "title": "Botofarm",
   "uid": "botofarm-overview",
-  "version": 1
+  "version": 2
 }

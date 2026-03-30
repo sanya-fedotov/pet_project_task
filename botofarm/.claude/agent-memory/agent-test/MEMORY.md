@@ -1,0 +1,1 @@
+- [Botofarm testing infrastructure and known issues](project_botofarm_testing.md) — PG loop scope fix, lock/free body requirement, service filter schema requirement

@@ -26,19 +26,29 @@ RESOLVED from first review:
 - mypy disallow_untyped_defs and disallow_any_generics added
 - TokenData.sub is EmailStr; no # type: ignore in dependencies.py
 
-REMAINING ISSUES (after fix pass):
-- .env is committed to the repo (contains SECRET_KEY, even if only a test value)
-- mypy strict=false; warn_unused_ignores, no_implicit_optional, disallow_incomplete_defs not set (partial fix)
-- middleware registration order: _guard_metrics is registered AFTER Instrumentator().expose(); FastAPI middleware runs in reverse order so guard is outermost — correct behavior but fragile and undocumented
-- When METRICS_TOKEN is empty AND caller is not localhost, endpoint returns 403 rather than 404; this leaks the existence of the endpoint (minor)
-- No rate limiting on /auth/token
-- No startup probe endpoint (CLAUDE.md spec mentions startup, liveness, readiness)
-- No Helm charts (required by spec)
-- No .github/workflows CI (required by spec)
-- No monitoring/ directory with prometheus.yml / grafana (required by spec)
-- free_users releases all locks across all projects (no project_id scoping) — possible spec gap
-- lock_user has no project_id/env/domain filter params — possible spec gap
-- passlib is in maintenance mode (minor)
+STATUS after third review (2026-03-30 full pass):
+
+All previously-flagged remaining issues are now RESOLVED:
+- Startup probe endpoint exists: GET /api/v1/health/startup
+- Helm charts present: helm/botofarm/ with Chart.yaml, values.yaml, deployment.yaml, service.yaml, configmap.yaml, secret.yaml
+- CI workflow present: .github/workflows/ci.yml (ruff, mypy, pytest)
+- monitoring/prometheus.yml present
+- middleware registration order documented with inline comment explaining Starlette reverse order
+- mypy: disallow_untyped_defs=true, disallow_any_generics=true, warn_unused_ignores=true, disallow_incomplete_defs=true (strict=false but meaningful checks enabled)
+
+REMAINING ISSUES after third review:
+- .env committed to repo with SECRET_KEY placeholder — BLOCKER
+- values.yaml has hardcoded SECRET_KEY/METRICS_TOKEN defaults "change-me-in-production" — BLOCKER (secrets in VCS even if placeholders)
+- Dockerfile does not exclude .env: .dockerignore lists .env but only as first entry; needs verification that build context actually excludes it
+- Prometheus service not in docker-compose.yml (monitoring/ files exist but are not wired up)
+- CI skips test_lock_pg.py (testcontainers tests need Docker) — no --ignore flag, but tests are only excluded by pytest path selection (tests/unit/ tests/api/)
+- No rate limiting on /auth/token — brute-force vector
+- free_users unscoped (all projects) — spec gap; no project_id filter
+- lock_user unscoped — no env/domain/project_id filter params
+- No pagination on GET /users
+- Helm chart lacks Ingress template
+- passlib in maintenance mode (minor)
+- lock_user SQLite vs PostgreSQL timezone awareness gap in tests (tz-aware workaround in test)
 
 **Why:** Bot-farm leasing service; concurrency correctness and auth security are critical.
 **How to apply:** In future reviews, focus on the remaining spec gaps (Helm, CI, monitoring) and any new auth/lock logic.

@@ -51,6 +51,34 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LockUserRequest(BaseModel):
+    """Optional filters for selecting which account to lock.
+
+    All fields are optional — when omitted, no filter is applied for
+    that dimension.
+
+    Attributes:
+        project_id: Restrict the search to this project.
+        env: Restrict the search to this deployment environment.
+        domain: Restrict the search to this traffic domain.
+    """
+
+    project_id: uuid.UUID | None = None
+    env: EnvType | None = None
+    domain: DomainType | None = None
+
+
+class FreeUsersRequest(BaseModel):
+    """Optional filters for selecting which accounts to free.
+
+    Attributes:
+        project_id: When provided, only accounts belonging to this project
+            are released.
+    """
+
+    project_id: uuid.UUID | None = None
+
+
 class FreeUsersResponse(BaseModel):
     """Response payload for the free-users operation.
 

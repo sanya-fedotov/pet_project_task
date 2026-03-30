@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator.metrics import default, latency
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.metrics import BOTOFARM_METRICS_BUCKETS
 
 _METRICS_PATH = "/metrics"
 
@@ -51,7 +53,19 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Prometheus metrics — guarded by a static bearer token or localhost-only
 # ---------------------------------------------------------------------------
-Instrumentator().instrument(app).expose(app, endpoint=_METRICS_PATH)
+# Use fine-grained buckets covering the full latency spectrum for this
+# service: sub-10ms lock contention checks up to 5-second worst-case DB ops.
+(
+    Instrumentator(excluded_handlers=[_METRICS_PATH])
+    .add(
+        latency(
+            buckets=BOTOFARM_METRICS_BUCKETS,
+        )
+    )
+    .add(default())
+    .instrument(app)
+    .expose(app, endpoint=_METRICS_PATH, include_in_schema=False)
+)
 
 # IMPORTANT: _guard_metrics MUST be registered AFTER Instrumentator().expose().
 # Starlette processes @app.middleware("http") decorators in reverse registration
@@ -84,11 +98,17 @@ async def _guard_metrics(
     if request.url.path != _METRICS_PATH:
         return await call_next(request)
 
-    if settings.metrics_token:
-        auth_header = request.headers.get("Authorization", "")
-        expected = f"Bearer {settings.metrics_token}"
-        if auth_header == expected:
-            return await call_next(request)
+    # When METRICS_TOKEN is not configured the endpoint is open — suitable for
+    # docker-compose / minikube where Prometheus runs on the same network and
+    # network-level access control is sufficient.
+    # When METRICS_TOKEN is configured, require a matching Bearer token.
+    if not settings.metrics_token:
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    expected = f"Bearer {settings.metrics_token}"
+    if auth_header == expected:
+        return await call_next(request)
 
     return Response(status_code=status.HTTP_403_FORBIDDEN)
 
