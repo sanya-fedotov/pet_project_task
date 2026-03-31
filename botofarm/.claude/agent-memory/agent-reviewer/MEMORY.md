@@ -1,0 +1,1 @@
+- [Botofarm Project Context](project_botofarm.md) — architecture, known issues from final review 2026-03-30: metrics test/middleware contradiction (BLOCKER), gauge init, Helm METRICS_TOKEN required

@@ -22,7 +22,7 @@ env:
   ACCESS_TOKEN_EXPIRE_MINUTES: "30"
   LOCK_TTL_SECONDS: "300"
   # Override these two values via --set or a sealed-secret in production.
-  SECRET_KEY: ""
+  SECRET_KEY: "CHANGE_ME_REQUIRED"
   METRICS_TOKEN: ""
   CORS_ORIGINS: '["http://localhost"]'
 

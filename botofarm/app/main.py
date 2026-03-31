@@ -2,17 +2,43 @@
 
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import default, latency
+from sqlalchemy import func, select
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.metrics import BOTOFARM_METRICS_BUCKETS
+from app.core.database import async_session_factory
+from app.metrics import BOTOFARM_METRICS_BUCKETS, users_locked_current
+from app.models.user import User
 
 _METRICS_PATH = "/metrics"
+
+
+async def _sync_locked_gauge() -> None:
+    """Query the DB for the current count of active locks and seed the gauge.
+
+    Called once at startup so that ``botofarm_users_locked_current`` reflects
+    reality after a process restart.  Without this, the gauge starts at zero
+    while locked rows may already exist, causing it to go negative the next
+    time ``free_users`` decrements it.
+
+    A short-lived session is used so the connection is returned to the pool
+    immediately after the count is fetched.
+    """
+    expiry = datetime.now(timezone.utc) - timedelta(seconds=settings.lock_ttl_seconds)
+    stmt = select(func.count()).select_from(User).where(
+        User.locktime.is_not(None),
+        User.locktime > expiry,
+    )
+    async with async_session_factory() as session:
+        result = await session.execute(stmt)
+        count: int = result.scalar_one()
+    users_locked_current.set(count)
 
 
 @asynccontextmanager
@@ -28,8 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Yields:
         Control to the ASGI server while the application is running.
     """
-    # Nothing to initialise at startup — the DB engine is created lazily
-    # via create_async_engine in database.py.
+    # Seed the locked-users gauge from the database so that a process restart
+    # does not leave the gauge at zero while locks already exist in the DB.
+    await _sync_locked_gauge()
     yield
 
 
